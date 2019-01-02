@@ -9,7 +9,61 @@
 
 #define PAGESIZE 4096
 
+/*
+; nasm -felf64 test.asm
+; ld -melf_x86_64 test.o
+
+    section .text
+    global _start
+_test:
+_start:
+    pushf
+    push rbp
+    push rsp
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    jmp hello
+back:
+    pop rsi
+    mov rdi, 1
+    mov rdx, 13
+    mov rax, 1
+    syscall
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    pop rsp
+    pop rbp
+    popf
+    jmp _start
+hello:
+    call back
+    .string dd "Hello world!", 10, 00
+*/
+
 #define _BUFFER_SIZE 89
+
 uint8_t buffer[PAGESIZE] = {
   0x9c, 0x55, 0x54, 0x50, 0x53, 0x51, 0x52, 0x57, 0x56, 0x41,
   0x51, 0x41, 0x52, 0x41, 0x53, 0x41, 0x54, 0x41, 0x55, 0x41,
@@ -31,6 +85,7 @@ static void modify_payload()
 {
     // for PIE executables 0x47
     int result = (oep - newoep) - 0x47;
+    // modify the value of jmp
     memcpy(&buffer[67], &result, sizeof(int));
 }
 
@@ -49,6 +104,11 @@ static void modify_programheader(void *ptr)
 	{
 	    if (phdr->p_type == PT_LOAD && found == 0)
 	    {
+	        if ((phdr->p_memsz + _BUFFER_SIZE) > phdr->p_align)
+	        {
+	            dprintf(2, "Size of TEXT SEGMENT is too small to add payload.\n");
+	            exit(EXIT_FAILURE);
+	        }
 	        newoep = phdr->p_filesz + phdr->p_vaddr;
             insertion_offset = phdr->p_offset + phdr->p_filesz;
             phdr->p_filesz += _BUFFER_SIZE;
